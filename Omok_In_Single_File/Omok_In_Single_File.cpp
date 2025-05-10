@@ -6,6 +6,33 @@
 #include <Windows.h>
 using namespace std;
 
+// Class
+struct Node {
+    // 0 : Black Stone, 1 : White Stone.
+    int Which_Stone, x, y;
+    Node* next;
+    Node* prdv;
+
+    Node(int W, int X, int Y);
+    ~Node();
+};
+class LinkedListStack {
+private:
+    Node* top; // 스택의 맨 위 노드를 가리키는 포인터
+    int Size{};
+
+public:
+    LinkedListStack();
+    ~LinkedListStack();
+
+    void push(int Which_Stone, int x, int y);
+    Node* pop();
+    Node* peek();
+    bool isEmpty();
+    void clear();
+    int size() const;
+};
+
 // Variables
 int HContinousBoard[20][20]{}, VContinousBoard[20][20]{};
 int HBContinousMax{}, HWContinousMax{}, HTContinousMax{}, HStoneSum[4][20]{};
@@ -21,6 +48,9 @@ const WORD COLOR_YELLOW = 0x0E;                 // 검은색 배경에 밝은 �
 const WORD COLOR_RED = 0x0C;                    // 검은색 배경에 밝은 빨간색 글꼴
 const WORD COLOR_GREEN = 0x0A;                  // 검은색 배경에 밝은 초록색 글꼴
 const WORD COLOR_TEAL = 0x0B;                   // 검은색 배경에 밝은 청록색 글꼴
+// ** Stack **
+LinkedListStack History;
+LinkedListStack UndoStack;
 
 // Define Functions
 void setConsoleColor(WORD color);
@@ -34,36 +64,12 @@ int Vertical_Checker();
 int LHDiagonal_Checker();
 int LLDiagonal_Checker();
 void SaveFileClear();
-void LoadFile();
+int LoadFile();
 int SaveFile();
-void Redo();
-void Undo();
+int Redo();
+int Undo();
+void SelectCurrentState();
 
-// Class
-struct Node {
-    int Which_Stone, x, y;
-    Node* next;
-    Node* prdv;
-
-    Node(int W, int X, int Y);
-    ~Node();
-};
-
-class LinkedListStack {
-private:
-    Node* top; // 스택의 맨 위 노드를 가리키는 포인터
-    int Size{};
-
-public:
-    LinkedListStack();
-    ~LinkedListStack();
-
-    void push(int Which_Stone, int x, int y);
-    Node* pop();
-    Node* peek();
-    bool isEmpty();
-    int size() const;
-};
 
 // Main
 int main()
@@ -76,7 +82,8 @@ int main()
         int CommandNum{};
         cout << "--------** Select Menu **--------\n"
             << "\t1. New_Game\n"
-            << "\t2. Load_Game\n";
+            << "\t2. Load_Game\n"
+            << "\t0. Exit\n";
         if (!(cin >> CommandNum)) {
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -85,12 +92,19 @@ int main()
         }
         else if (1 == CommandNum) {
             SaveFileClear();
-            LoadFile();
+            if (1 == LoadFile()) {
+                cout << "파일을 로드하는데 실패했습니다.\n";
+            }
             break;
         }
         else if (2 == CommandNum) {
-            LoadFile();
+            if (1 == LoadFile()) {
+                cout << "파일을 로드하는데 실패했습니다.\n";
+            }
             break;
+        }
+        else if (0 == CommandNum) {
+            return 0;
         }
         else {
             cout << "틀린 커멘드 입니다. 다시 입력해주세요.\n";
@@ -98,7 +112,8 @@ int main()
         }
     }
     // 게임 진행 사이클.
-    while (true) {
+    bool ExitFlag{ false };
+    while (!ExitFlag) {
         system("cls");
         ShowBoard();
 
@@ -116,37 +131,92 @@ int main()
             }
         }
 
-        cout << "흑돌 : " << player[0] << ", 백돌 : " << player[1] << endl;
-        cout << "입력은 (세로축, 가로축) 입니다.\n";
-        cout << "입력에 0이 입력되면 프로그램이 종료됩니다.\n";
+        cout << "--------** Action Menu **--------\n"
+            << "\t1. Place Stone\n"
+            << "\t2. Modify State\n"
+            << "\t0. Finish Game\n";
+        while (true) {
+            int ActionCommandNum;
+            if (!(cin >> ActionCommandNum)) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "입력이 잘못 되었습니다. 다시 입력해주세요.\n";
+                continue;
+            }
+            // 돌 놓기 사이클
+            else if (1 == ActionCommandNum) {
+                cout << "흑돌 : " << player[0] << ", 백돌 : " << player[1] << endl;
+                cout << "입력은 (세로축, 가로축) 입니다.\n";
+                cout << "입력에 0이 입력되면 프로그램이 종료됩니다.\n";
 
-        if (0 == PlayerTurn) {
-            PlayerTurn = PlaceBStone();
-            if (PlayerTurn == -1) {
-                system("cls");
+                if (0 == PlayerTurn) {
+                    PlayerTurn = PlaceBStone();
+                    if (PlayerTurn == -1) {
+                        system("cls");
+                        break;
+                    }
+                    if (1 == CheckBoard()) {
+                        setConsoleColor(COLOR_TEAL);
+                        cout << "\n흑돌 승리!\n";
+                        setConsoleColor(COLOR_DEFAULT);
+                        break;
+                    }
+                    PlayerTurn = 1;
+                }
+                else {
+                    PlayerTurn = PlaceWStone();
+                    if (PlayerTurn == -1) {
+                        system("cls");
+                        break;
+                    }
+                    if (2 == CheckBoard()) {
+                        setConsoleColor(COLOR_TEAL);
+                        cout << "\n백돌 승리!\n";
+                        setConsoleColor(COLOR_DEFAULT);
+                        break;
+                    }
+                    PlayerTurn = 0;
+                }
+            }
+            // Undo, Redo 사이클
+            else if (2 == ActionCommandNum) {
+                while (true) {
+                    int ModifyCommandNum;
+                    cout << "-------- ** Modify Menu **--------\n"
+                        << "\t1. Undo\n"
+                        << "\t2. Redo\n"
+                        << "\t3. Select Current State\n"
+                        << "3번은 Undo 및 Redo 한 상태를 결정하는 커멘드입니다. *주의하세요 되돌릴 수 없습니다.*\n";
+                    if (!(cin >> ModifyCommandNum)) {
+                        cin.clear();
+                        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        cout << "입력이 잘못 되었습니다. 다시 입력해주세요.\n";
+                        continue;
+                    }
+                    else if (1 == ModifyCommandNum) {
+                        Undo();
+                    }
+                    else if (2 == ModifyCommandNum) {
+                        Redo();
+                    }
+                    else if (3 == ModifyCommandNum) {
+                        SelectCurrentState();
+                        break;
+                    }
+                    else {
+                        cout << "잘못된 커멘드 입력입니다. 다시 입력해주세요.\n";
+                        continue;
+                    }
+                }
+            }
+            else if (0 == ActionCommandNum) {
+                ExitFlag = true;
                 break;
             }
-            if (1 == CheckBoard()) {
-                setConsoleColor(COLOR_TEAL);
-                cout << "\n흑돌 승리!\n";
-                setConsoleColor(COLOR_DEFAULT);
-                break;
+            else {
+                cout << "잘못된 커멘드 입력입니다. 다시 입력해주세요.\n";
+                continue;
             }
-            PlayerTurn = 1;
-        }
-        else {
-            PlayerTurn = PlaceWStone();
-            if (PlayerTurn == -1) {
-                system("cls");
-                break;
-            }
-            if (2 == CheckBoard()) {
-                setConsoleColor(COLOR_TEAL);
-                cout << "\n백돌 승리!\n";
-                setConsoleColor(COLOR_DEFAULT);
-                break;
-            }
-            PlayerTurn = 0;
         }
     }
     ShowBoard();
@@ -277,6 +347,9 @@ int PlaceBStone()
         }
         break;
     }
+
+    History.push(0, x, y);
+
     map[x][y] = player[0];
     CountBlackStone++;
     VStoneSum[0][y]++;
@@ -307,6 +380,9 @@ int PlaceWStone()
         }
         break;
     }
+
+    History.push(1, x, y);
+
     map[x][y] = player[1];
     CountWhiteStone++;
     VStoneSum[1][y]++;
@@ -728,11 +804,109 @@ int LLDiagonal_Checker() {
 }
 
 // File Function
-void SaveFileClear() {}
-void LoadFile() {}
-int SaveFile() {}
-void Redo() {}
-void Undo() {}
+void SaveFileClear() {
+    // 덮어쓰기 모드로 열면 기존 내용 삭제. -> 여기서 작동하는 플래그 : ios::trunc (디폴트)
+    // 추가모드로 열려면 ios::app 플래그를 추가해 열자.
+    ofstream out("SaveFile.txt", ios::trunc);
+    if (!out) {
+        cerr << "Error at opening SaveFile.txt\n";
+        return;
+    }
+
+    out.close();
+    return;
+}
+int LoadFile() {
+    constexpr int MaxBufferSize = 64;
+    constexpr int MaxFieldsSize = 16;
+    ifstream in("SaveFile.txt");
+    if (!in) {
+        cerr << "Error at opening SaveFile.txt\n";
+        return -1;
+    }
+    
+    char buffer[MaxBufferSize]{};
+    while (in.getline(buffer, MaxBufferSize)) {
+        char* context{};
+        char* token{};
+        char fields[3][MaxFieldsSize]{};
+        int index{};
+
+        token = strtok_s(buffer, " ", &context);
+        while (index < 2 && nullptr != token) {
+            strcpy_s(fields[index++], token);
+            token = strtok_s(nullptr, " ", &context);
+        }
+        if (index == 2 && token != nullptr) {
+            strcpy_s(fields[index++], token);
+        }
+
+        if(index == 3)
+        History.push(atoi(fields[0]), atoi(fields[1]), atoi(fields[2]));
+    }
+
+    in.close();
+    return 0;
+}
+int SaveFile() {
+    ofstream out("SaveFile.txt");
+    if (!out) {
+        cerr << "Error at opening SaveFile.txt\n";
+        return -1;
+    }
+
+    // 1. History 스택을 새 스택에 뒤집어서 저장
+    LinkedListStack newStack;
+    while (History.isEmpty()) {
+        Node* temp = History.pop();
+        newStack.push(temp->Which_Stone, temp->x, temp->y);
+        delete temp;
+    }
+
+    // 2. 새 스택에서 하나씩 빼서 "<Which_Stone> <x> <y>\n"으로 한줄씩 저장.
+    while (newStack.isEmpty()) {
+        Node* temp = newStack.pop();
+        out << temp->Which_Stone << " " << temp->x << " " << temp->y << endl;
+        delete temp;
+    }
+
+    out.close();
+    return 0;
+}
+int Undo() {
+    if (History.isEmpty()) {
+        cerr << "더 이상 Undo 할 수 없습니다.\n";
+        return -1;
+    }
+    Node* temp = History.pop();
+    UndoStack.push(temp->Which_Stone, temp->x, temp->y);
+
+    map[temp->x][temp->y] = "+";
+
+    delete temp;
+    return 0;
+}
+int Redo() {
+    if (UndoStack.isEmpty()) {
+        cerr << "더 이상 Redo 할 수 없습니다.\n";
+        return -1;
+    }
+    Node* temp = UndoStack.pop();
+    History.push(temp->Which_Stone, temp->x, temp->y);
+
+    if (0 == temp->Which_Stone) {
+        map[temp->x][temp->y] = player[0];
+    }
+    else {
+        map[temp->x][temp->y] = player[1];
+    }
+
+    delete temp;
+    return 0;
+}
+void SelectCurrentState() {
+    UndoStack.clear();
+}
 
 // Node Function
 Node::Node(int W, int X, int Y) : next(nullptr), prdv(nullptr) {
@@ -774,6 +948,12 @@ Node* LinkedListStack::peek() {
 }
 bool LinkedListStack::isEmpty() {
     return top == nullptr;
+}
+void LinkedListStack::clear() {
+    while (isEmpty()) {
+        delete pop();
+        Size--;
+    }
 }
 int LinkedListStack::size() const {
     return Size;
