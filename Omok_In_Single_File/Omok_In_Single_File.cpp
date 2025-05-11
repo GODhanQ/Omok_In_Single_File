@@ -54,6 +54,7 @@ LinkedListStack UndoStack;
 
 // Define Functions
 void setConsoleColor(WORD color);
+void gotoxy(int x, int y);
 void Initialize();
 void ShowBoard();
 int PlaceBStone();
@@ -80,6 +81,8 @@ int main()
     // 세이브 파일 선택
     while (true) {
         int CommandNum{};
+
+
         cout << "--------** Select Menu **--------\n"
             << "\t1. New_Game\n"
             << "\t2. Load_Game\n"
@@ -92,9 +95,6 @@ int main()
         }
         else if (1 == CommandNum) {
             SaveFileClear();
-            if (1 == LoadFile()) {
-                cout << "파일을 로드하는데 실패했습니다.\n";
-            }
             break;
         }
         else if (2 == CommandNum) {
@@ -131,12 +131,14 @@ int main()
             }
         }
 
-        cout << "--------** Action Menu **--------\n"
-            << "\t1. Place Stone\n"
-            << "\t2. Modify State\n"
-            << "\t0. Finish Game\n";
         while (true) {
             int ActionCommandNum;
+
+            cout << "--------** Action Menu **--------\n"
+                << "\t1. Place Stone\n"
+                << "\t2. Modify State\n"
+                << "\t0. Finish Game\n";
+
             if (!(cin >> ActionCommandNum)) {
                 cin.clear();
                 cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -162,6 +164,7 @@ int main()
                         break;
                     }
                     PlayerTurn = 1;
+                    break;
                 }
                 else {
                     PlayerTurn = PlaceWStone();
@@ -176,17 +179,20 @@ int main()
                         break;
                     }
                     PlayerTurn = 0;
+                    break;
                 }
             }
             // Undo, Redo 사이클
             else if (2 == ActionCommandNum) {
                 while (true) {
                     int ModifyCommandNum;
+
                     cout << "-------- ** Modify Menu **--------\n"
-                        << "\t1. Undo\n"
+                        << "\t1. Undo\n"    
                         << "\t2. Redo\n"
                         << "\t3. Select Current State\n"
                         << "3번은 Undo 및 Redo 한 상태를 결정하는 커멘드입니다. *주의하세요 되돌릴 수 없습니다.*\n";
+
                     if (!(cin >> ModifyCommandNum)) {
                         cin.clear();
                         cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -201,6 +207,12 @@ int main()
                     }
                     else if (3 == ModifyCommandNum) {
                         SelectCurrentState();
+                        if (History.size() % 2 == 0) {
+                            PlayerTurn = 0;
+                        }
+                        else {
+                            PlayerTurn = 1;
+                        }
                         break;
                     }
                     else {
@@ -224,7 +236,7 @@ int main()
     cout << "흑돌의 갯수 : " << CountBlackStone << endl;
     cout << "백돌의 갯수 : " << CountWhiteStone << endl;
 
-    if (1 == SaveFile()) {
+    if (0 == SaveFile()) {
         cout << "저장되었습니다.\n";
     }
     else {
@@ -232,10 +244,14 @@ int main()
     }
 }
 
-// ChangeConsoleColor
+// Console Functions
 void setConsoleColor(WORD color) {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleTextAttribute(hConsole, color);
+}
+void gotoxy(int x, int y) {
+    COORD pos = { (short)x, (short)y };
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
 }
 
 // Function Prepare for Game
@@ -834,16 +850,28 @@ int LoadFile() {
 
         token = strtok_s(buffer, " ", &context);
         while (index < 2 && nullptr != token) {
-            strcpy_s(fields[index++], token);
+            strcpy_s(fields[index++], MaxFieldsSize, token);
             token = strtok_s(nullptr, " ", &context);
         }
         if (index == 2 && token != nullptr) {
-            strcpy_s(fields[index++], token);
+            strcpy_s(fields[index++], MaxFieldsSize, token);
         }
 
-        if(index == 3)
-        History.push(atoi(fields[0]), atoi(fields[1]), atoi(fields[2]));
+        if (index == 3) {
+            int WhichStone{ atoi(fields[0]) }, x{ atoi(fields[1]) }, y{ atoi(fields[2]) };
+
+            History.push(WhichStone, x, y);
+            
+            if (0 == WhichStone) {
+                map[x][y] = player[0];
+            }
+            else {
+                map[x][y] = player[1];
+            }
+        }
     }
+
+
 
     in.close();
     return 0;
@@ -854,28 +882,29 @@ int SaveFile() {
         cerr << "Error at opening SaveFile.txt\n";
         return -1;
     }
+    if (!History.isEmpty()) {
+        // 1. History 스택을 새 스택에 뒤집어서 저장
+        LinkedListStack newStack;
+        while (!History.isEmpty()) {
+            Node* temp = History.pop();
+            newStack.push(temp->Which_Stone, temp->x, temp->y);
+            delete temp;
+        }
 
-    // 1. History 스택을 새 스택에 뒤집어서 저장
-    LinkedListStack newStack;
-    while (History.isEmpty()) {
-        Node* temp = History.pop();
-        newStack.push(temp->Which_Stone, temp->x, temp->y);
-        delete temp;
-    }
-
-    // 2. 새 스택에서 하나씩 빼서 "<Which_Stone> <x> <y>\n"으로 한줄씩 저장.
-    while (newStack.isEmpty()) {
-        Node* temp = newStack.pop();
-        out << temp->Which_Stone << " " << temp->x << " " << temp->y << endl;
-        delete temp;
+        // 2. 새 스택에서 하나씩 빼서 "<Which_Stone> <x> <y>\n"으로 한줄씩 저장.
+        while (!newStack.isEmpty()) {
+            Node* temp = newStack.pop();
+            out << temp->Which_Stone << " " << temp->x << " " << temp->y << endl;
+            delete temp;
+        }
     }
 
     out.close();
+    cout << "\n저장 완료: SaveFile.txt\n";
     return 0;
 }
 int Undo() {
     if (History.isEmpty()) {
-        cerr << "더 이상 Undo 할 수 없습니다.\n";
         return -1;
     }
     Node* temp = History.pop();
@@ -884,11 +913,14 @@ int Undo() {
     map[temp->x][temp->y] = "+";
 
     delete temp;
+
+    system("cls");
+    ShowBoard();
+
     return 0;
 }
 int Redo() {
     if (UndoStack.isEmpty()) {
-        cerr << "더 이상 Redo 할 수 없습니다.\n";
         return -1;
     }
     Node* temp = UndoStack.pop();
@@ -902,6 +934,10 @@ int Redo() {
     }
 
     delete temp;
+
+    system("cls");
+    ShowBoard();
+
     return 0;
 }
 void SelectCurrentState() {
@@ -923,25 +959,29 @@ LinkedListStack::~LinkedListStack() {
 }
 void LinkedListStack::push(int W, int X, int Y) {
     Node* newNode = new Node(W, X, Y);
+
     newNode->next = top;
-    top->prdv = newNode;
+    if (top) {
+        top->prdv = newNode;
+    }
     top = newNode;
+
     Size++;
 }
 Node* LinkedListStack::pop() {
     if (isEmpty()) {
-        throw std::out_of_range("Stack is empty");
+        cerr << "Stack is empty\n";
+        return nullptr;
     }
 
-    Node* PoppedData = top;
-    PoppedData->next = nullptr;
-
+    Node* poppedNode = top;
     top = top->next;
-    if (nullptr != top) {
+    if (top != nullptr) {
         top->prdv = nullptr;
     }
 
-    return PoppedData;
+    poppedNode->next = nullptr; // 분리
+    return poppedNode;
 }
 Node* LinkedListStack::peek() {
     return top;
@@ -950,7 +990,7 @@ bool LinkedListStack::isEmpty() {
     return top == nullptr;
 }
 void LinkedListStack::clear() {
-    while (isEmpty()) {
+    while (!isEmpty()) {
         delete pop();
         Size--;
     }
