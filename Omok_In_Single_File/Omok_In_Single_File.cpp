@@ -34,7 +34,7 @@ public:
 };
 
 // Variables
-int HContinousBoard[20][20]{}, VContinousBoard[20][20]{};
+int HContinousBoard[20][20]{}, VContinousBoard[20][20]{}, LHDContinousBoard[20][20]{}, LLDContinousBoard[20][20]{};
 int HBContinousMax{}, HWContinousMax{}, HTContinousMax{}, HStoneSum[4][20]{};
 int VBContinousMax{}, VWContinousMax{}, VTContinousMax{}, VStoneSum[4][20]{};
 int LHDBContinousMax{}, LHDWContinousMax{}, LHDTContinousMax{}, LHDStoneSum[4][38]{};
@@ -43,18 +43,17 @@ int CountBlackStone{}, CountWhiteStone{}, TContinousMax{};
 string map[20][20]{}, player[2]{ " ○"," ●" };   // 1. black, 2. white
 string MARKER{ "@" };                           // 승리 마커
 // ** Windows 콘솔 색상 정의 **
-const WORD COLOR_DEFAULT = 0x07;                // 흰색 배경에 회색 글꼴
-const WORD COLOR_YELLOW = 0x0E;                 // 검은색 배경에 밝은 노란색 글꼴
-const WORD COLOR_RED = 0x0C;                    // 검은색 배경에 밝은 빨간색 글꼴
-const WORD COLOR_GREEN = 0x0A;                  // 검은색 배경에 밝은 초록색 글꼴
-const WORD COLOR_TEAL = 0x0B;                   // 검은색 배경에 밝은 청록색 글꼴
+const WORD COLOR_DEFAULT = 0x07;                // 흰색 배경에 회색 글꼴 
+const WORD COLOR_YELLOW = 0x0E;                 // 검은색 배경에 밝은 노란색 글꼴    : 일반 돌
+const WORD COLOR_RED = 0x0C;                    // 검은색 배경에 밝은 빨간색 글꼴    : 연속 3 or 4 인 돌
+const WORD COLOR_GREEN = 0x0A;                  // 검은색 배경에 밝은 초록색 글꼴    : 가로로 가장 긴 연속된 돌
+const WORD COLOR_TEAL = 0x0B;                   // 검은색 배경에 밝은 청록색 글꼴    : 승리 마커, 승패 출력
 // ** Stack **
 LinkedListStack History;
 LinkedListStack UndoStack;
 
 // Define Functions
 void setConsoleColor(WORD color);
-void gotoxy(int x, int y);
 void Initialize();
 void ShowBoard();
 int PlaceBStone();
@@ -101,6 +100,21 @@ int main()
             if (1 == LoadFile()) {
                 cout << "파일을 로드하는데 실패했습니다.\n";
             }
+            int State = CheckBoard();
+            if (1 == State) {
+                setConsoleColor(COLOR_TEAL);
+                cout << "\n흑돌 승리!\n";
+                setConsoleColor(COLOR_DEFAULT);
+                ShowBoard();
+                return 0;
+            }
+            else if (2 == State) {
+                setConsoleColor(COLOR_TEAL);
+                cout << "\n백돌 승리!\n";
+                setConsoleColor(COLOR_DEFAULT);
+                ShowBoard();
+                return 0;
+            }
             break;
         }
         else if (0 == CommandNum) {
@@ -118,18 +132,6 @@ int main()
         ShowBoard();
 
         TContinousMax = max(HTContinousMax, VTContinousMax);
-        for (int i = 0; i < 2; ++i) {
-            for (int j = 1; j < 20; ++j) {
-                if (HStoneSum[i][j] == TContinousMax && 0 == i) {
-                    cout << "가로줄에서 가장 긴 연속된 흑돌의 갯수 : " << HTContinousMax << "\n\n";
-                    break;
-                }
-                else if (HStoneSum[i][j] == TContinousMax && 1 == i) {
-                    cout << "세로줄에서 가장 긴 연속된 백돌의 갯수 : " << VTContinousMax << "\n\n";
-                    break;
-                }
-            }
-        }
 
         while (true) {
             int ActionCommandNum;
@@ -161,7 +163,7 @@ int main()
                         setConsoleColor(COLOR_TEAL);
                         cout << "\n흑돌 승리!\n";
                         setConsoleColor(COLOR_DEFAULT);
-                        break;
+                        ExitFlag = true;
                     }
                     PlayerTurn = 1;
                     break;
@@ -176,7 +178,7 @@ int main()
                         setConsoleColor(COLOR_TEAL);
                         cout << "\n백돌 승리!\n";
                         setConsoleColor(COLOR_DEFAULT);
-                        break;
+                        ExitFlag = true;
                     }
                     PlayerTurn = 0;
                     break;
@@ -249,10 +251,6 @@ void setConsoleColor(WORD color) {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleTextAttribute(hConsole, color);
 }
-void gotoxy(int x, int y) {
-    COORD pos = { (short)x, (short)y };
-    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
-}
 
 // Function Prepare for Game
 void Initialize()
@@ -278,7 +276,17 @@ void ShowBoard()
         cout << setw(2) << i << setw(2) << "|";
         for (int j = 1; j < 20; ++j) {
             if (map[i][j] == player[0] || map[i][j] == player[1]) {
-                if (HContinousBoard[i][j] == HTContinousMax) {
+                if ((HContinousBoard[i][j] == 3 || HContinousBoard[i][j] == 4) ||
+                    (VContinousBoard[i][j] == 3 || VContinousBoard[i][j] == 4) ||
+                    (LLDContinousBoard[i][j] == 3 || LLDContinousBoard[i][j] == 4) ||
+                    (LHDContinousBoard[i][j] == 3 || LHDContinousBoard[i][j] == 4)) {
+                    setConsoleColor(COLOR_RED);
+                    cout << setw(2) << map[i][j];
+                    setConsoleColor(COLOR_DEFAULT);
+                    cout << setw(2) << "|";
+                    continue;
+                }
+                else if (HContinousBoard[i][j] == HTContinousMax) {
                     setConsoleColor(COLOR_GREEN);
                     cout << setw(2) << map[i][j];
                     setConsoleColor(COLOR_DEFAULT);
@@ -290,7 +298,7 @@ void ShowBoard()
                 setConsoleColor(COLOR_DEFAULT);
             }
             else if (map[i][j] == MARKER) {
-                setConsoleColor(COLOR_RED);
+                setConsoleColor(COLOR_TEAL);
                 cout << setw(2) << map[i][j];
                 setConsoleColor(COLOR_DEFAULT);
             }
@@ -337,6 +345,33 @@ void ShowBoard()
         cout << endl;
     }
     cout << "\n\n";
+    for (int i = 0; i < 2; ++i) {
+        for (int j = 1; j < 20; ++j) {
+            if (HStoneSum[i][j] == TContinousMax && 0 == i) {
+                cout << "가로줄에서 가장 긴 연속된 흑돌의 갯수 : " << HTContinousMax << "\n\n";
+                break;
+            }
+            else if (HStoneSum[i][j] == TContinousMax && 1 == i) {
+                cout << "세로줄에서 가장 긴 연속된 백돌의 갯수 : " << VTContinousMax << "\n\n";
+                break;
+            }
+        }
+    }
+    for (int i = 1; i < 20; ++i) {
+        for (int j = 1; j < 20; ++j) {
+            cout << LHDContinousBoard[i][j] << ' ';
+        }
+        cout << endl;
+    }
+    cout << endl;
+    /*
+    for (int i = 1; i < 20; ++i) {
+        for (int j = 1; j < 20; ++j) {
+            cout << VContinousBoard[i][j] << ' ';
+        }
+        cout << endl;
+    }
+    */
 }
 
 // PlaceStones
@@ -445,20 +480,32 @@ int CheckBoard()
 int Horizonal_Checker()
 {
     int continuous_counter{ 1 };
+    int OneBundleMax{};
     int SLBM{}, SLWM{};
+    int CurrentState[2]{-1, -1};  // 0 : BlackStone, 1 : WhiteStone
 
     for (int i = 1; i < 20; i++) {
         SLBM = 0; SLWM = 0;
+        OneBundleMax = 0;
         for (int j = 1; j < 20; j++) {
             if (map[i][j] == player[0]) {                           //흑돌일때
                 continuous_counter = 1;
+                CurrentState[0] = 0;
+                bool meetblank{ false };
+                if (0 != CurrentState[1]) OneBundleMax = 0;
                 for (int k = 1; k < 5; k++) {
-                    if (j + k < 20 && map[i][j + k] == player[0]) continuous_counter++;
+                    if (j + k < 20) {
+                        if ((true == meetblank && map[i][j + k] == "+") || (map[i][j + k] == player[1])) break;
+                        if (map[i][j + k] == "+") meetblank = true;
+                        if (map[i][j + k] == player[0]) continuous_counter++;
+                    }
                     else break;
                 }
                 SLBM = max(continuous_counter, SLBM);
+                OneBundleMax = max(continuous_counter, OneBundleMax);
+
                 for (int l = 0; l < continuous_counter; l++)
-                    HContinousBoard[i][j + l] = SLBM;
+                    HContinousBoard[i][j + l] = OneBundleMax;
                 if (5 == continuous_counter) {
                     for (int k = 0; k < 5; ++k)
                         map[i][j + k] = MARKER;
@@ -468,19 +515,29 @@ int Horizonal_Checker()
 
             else if (map[i][j] == player[1]) {                      //백돌일때
                 continuous_counter = 1;
+                CurrentState[0] = 1;
+                bool meetblank{ false };
+                if (1 != CurrentState[1]) OneBundleMax = 0;
                 for (int k = 1; k < 5; k++) {
-                    if (j + k < 20 && map[i][j + k] == player[1]) continuous_counter++;
+                    if (j + k < 20) {
+                        if ((true == meetblank && map[i][j + k] == "+") || (map[i][j + k] == player[0])) break;
+                        if (map[i][j + k] == "+") meetblank = true;
+                        if (map[i][j + k] == player[1]) continuous_counter++;
+                    }
                     else break;
                 }
                 SLWM = max(continuous_counter, SLWM);
+                OneBundleMax = max(continuous_counter, OneBundleMax);
+
                 for (int l = 0; l < continuous_counter; l++)
-                    HContinousBoard[i][j + l] = SLWM;
+                    HContinousBoard[i][j + l] = OneBundleMax;
                 if (5 == continuous_counter) {
                     for (int k = 0; k < 5; ++k)
                         map[i][j + k] = MARKER;
                     return 2;
                 }
             }
+            CurrentState[1] = CurrentState[0];
         }
 
         if (SLBM > SLWM) {
@@ -506,37 +563,63 @@ int Horizonal_Checker()
 int Vertical_Checker()
 {
     int continuous_counter{ 1 };
+    int OneBundleMax{};
     int SLBM{}, SLWM{};
+    int CurrentState[2]{ -1, -1 };  // 0 : BlackStone, 1 : WhiteStone
+
     for (int i = 1; i < 20; i++) {
         SLBM = 0; SLWM = 0;
+        OneBundleMax = 0;
         for (int j = 1; j < 20; j++) {
-            if (map[j][i] == player[0]) {                           //흑돌일때
+            if (map[j][i] == player[0]) {
                 continuous_counter = 1;
+                CurrentState[0] = 0;
+                bool meetblank{ false };
+                if (0 != CurrentState[1]) OneBundleMax = 0;
                 for (int k = 1; k < 5; k++) {
-                    if (j + k < 20 && map[j + k][i] == player[0]) continuous_counter++;
+                    if (j + k < 20) {
+                        if ((true == meetblank && map[j + k][i] == "+") || (map[j + k][i] == player[1])) break;
+                        if (map[j + k][i] == "+") meetblank = true;
+                        if (map[j + k][i] == player[0]) continuous_counter++;
+                    }
                     else break;
                 }
                 SLBM = max(continuous_counter, SLBM);
+                OneBundleMax = max(continuous_counter, OneBundleMax);
+
+                for (int l = 0; l < continuous_counter; l++)
+                    VContinousBoard[j + l][i] = OneBundleMax;
                 if (5 == continuous_counter) {
                     for (int k = 0; k < 5; ++k)
                         map[j + k][i] = MARKER;
                     return 1;
                 }
             }
-
-            else if (map[i][j] == player[1]) {                      //백돌일때
+            else if (map[j][i] == player[1]) {
                 continuous_counter = 1;
+                CurrentState[0] = 1;
+                bool meetblank{ false };
+                if (1 != CurrentState[1]) OneBundleMax = 0;
                 for (int k = 1; k < 5; k++) {
-                    if (j + k < 20 && map[j + k][i] == player[1]) continuous_counter++;
+                    if (j + k < 20) {
+                        if ((true == meetblank && map[j + k][i] == "+") || (map[j + k][i] == player[0])) break;
+                        if (map[j + k][i] == "+") meetblank = true;
+                        if (map[j + k][i] == player[1]) continuous_counter++;
+                    }
                     else break;
                 }
                 SLWM = max(continuous_counter, SLWM);
+                OneBundleMax = max(continuous_counter, OneBundleMax);
+
+                for (int l = 0; l < continuous_counter; l++)
+                    VContinousBoard[j + l][i] = OneBundleMax;
                 if (5 == continuous_counter) {
                     for (int k = 0; k < 5; ++k)
                         map[j + k][i] = MARKER;
                     return 2;
                 }
             }
+            CurrentState[1] = CurrentState[0];
         }
 
         if (SLBM > SLWM) {
@@ -562,21 +645,47 @@ int Vertical_Checker()
 int LHDiagonal_Checker()
 {
     int continuous_counter{ 1 }, MaxTemp{}, DiagonalCount{ 1 };
+    int OneBundleMax{};
     int SLBM{}, SLWM{};
+    int CurrentState[2]{ -1, -1 };  // 0 : BlackStone, 1 : WhiteStone
 
     for (DiagonalCount = 1; DiagonalCount < 38; ++DiagonalCount) {      //37개의 대각선을 구분지어서 하기 위함.
         SLBM = 0, SLWM = 0;
+        OneBundleMax = 0;
         if (DiagonalCount < 19) {                   //왼쪽 벽에서 시작하는 대각선
             int rightside = 1; SLBM = 0, SLWM = 0;
+            OneBundleMax = 0;
             for (int leftside = 19; leftside > 0; --leftside) {
                 if (map[leftside][rightside] == player[0]) {     //흑돌일때
                     continuous_counter = 1;
+
+                    CurrentState[0] = 0;
+                    bool meetblank{ false };
+                    if (0 != CurrentState[1]) OneBundleMax = 0;
                     for (int k = 1; k < 5; k++) {
-                        if (leftside + k < 20 && rightside + k < 20 && map[leftside + k][rightside + k] == player[0])
-                            continuous_counter++;
+                        if (leftside + k < 20 && rightside + k < 20) {
+                            if ((true == meetblank && map[leftside][rightside + k] == "+") || (map[leftside][rightside + k] == player[1])) break;
+                            if (map[leftside + k][rightside + k] == "+") meetblank = true;
+                            if (map[leftside + k][rightside + k] == player[0]) continuous_counter++;
+                        }
                         else break;
                     }
                     SLBM = max(continuous_counter, SLBM);
+                    OneBundleMax = max(continuous_counter, OneBundleMax);
+
+                    for (int l = 0; l < continuous_counter; l++)
+                        LHDContinousBoard[leftside + l][rightside + l] = OneBundleMax;
+                    //
+                    /*
+                    for (int k = 1; k < 5; k++) {
+                        if (leftside + k < 20 && rightside + k < 20) {
+                            if (map[leftside + k][rightside + k] == player[0])
+                                continuous_counter++;
+                            else break;
+                        }
+                    }
+                    SLBM = max(continuous_counter, SLBM);
+                    */
                     if (5 == continuous_counter) {
                         for (int k = 0; k < 5; ++k)
                             map[leftside + k][rightside + k] = MARKER;
@@ -585,12 +694,32 @@ int LHDiagonal_Checker()
                 }
                 else if (map[leftside][rightside] == player[1]) {     //백돌일때
                     continuous_counter = 1;
+
+                    CurrentState[0] = 1;
+                    bool meetblank{ false };
+                    if (1 != CurrentState[1]) OneBundleMax = 0;
+                    for (int k = 1; k < 5; k++) {
+                        if (leftside + k < 20 && rightside + k < 20) {
+                            if ((true == meetblank && map[leftside][rightside + k] == "+") || (map[leftside][rightside + k] == player[0])) break;
+                            if (map[leftside + k][rightside + k] == "+") meetblank = true;
+                            if (map[leftside + k][rightside + k] == player[1]) continuous_counter++;
+                        }
+                        else break;
+                    }
+                    SLWM = max(continuous_counter, SLWM);
+                    OneBundleMax = max(continuous_counter, OneBundleMax);
+
+                    for (int l = 0; l < continuous_counter; l++)
+                        LHDContinousBoard[leftside + l][rightside + l] = OneBundleMax;
+                    //
+                    /*
                     for (int k = 1; k < 5; k++) {
                         if (leftside + k < 20 && rightside + k < 20 && map[leftside + k][rightside + k] == player[1])
                             continuous_counter++;
                         else break;
                     }
                     SLWM = max(continuous_counter, SLWM);
+                    */
                     if (5 == continuous_counter) {
                         for (int k = 0; k < 5; ++k)
                             map[leftside + k][rightside + k] = MARKER;
@@ -665,6 +794,8 @@ int LHDiagonal_Checker()
                 }
             }
         }
+        CurrentState[1] = CurrentState[0];
+        
         if (SLBM > SLWM) {
             LHDStoneSum[2][DiagonalCount] = SLBM;
             LHDStoneSum[3][DiagonalCount] = -1;
@@ -691,7 +822,7 @@ int LLDiagonal_Checker() {
 
     for (DiagonalCount = 1; DiagonalCount < 38; ++DiagonalCount) { // 37개의 대각선을 구분지어서 하기 위함.
         SLBM = 0, SLWM = 0;
-        if (DiagonalCount < 19) { // 왼쪽 벽에서 시작하는 우상향 대각선
+        if (DiagonalCount < 19) { // 오른쪽 벽에서 시작하는 우상향 대각선
             int rightside = DiagonalCount;
             for (int leftside = 19; leftside > 0; --leftside) {
                 if (rightside > 0 && rightside < 20) {
