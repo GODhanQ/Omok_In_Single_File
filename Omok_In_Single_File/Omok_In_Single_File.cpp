@@ -46,7 +46,7 @@ string MARKER{ "@" };                           // 승리 마커
 const WORD COLOR_DEFAULT = 0x07;                // 흰색 배경에 회색 글꼴 
 const WORD COLOR_YELLOW = 0x0E;                 // 검은색 배경에 밝은 노란색 글꼴    : 일반 돌
 const WORD COLOR_RED = 0x0C;                    // 검은색 배경에 밝은 빨간색 글꼴    : 연속 3 or 4 인 돌
-const WORD COLOR_GREEN = 0x0A;                  // 검은색 배경에 밝은 초록색 글꼴    : 가로로 가장 긴 연속된 돌
+const WORD COLOR_GREEN = 0x0A;                  // 검은색 배경에 밝은 초록색 글꼴    : 가장 긴 연속된 돌
 const WORD COLOR_TEAL = 0x0B;                   // 검은색 배경에 밝은 청록색 글꼴    : 승리 마커, 승패 출력
 // ** Stack **
 LinkedListStack History;
@@ -645,38 +645,15 @@ int Vertical_Checker()
 int LHDiagonal_Checker()
 {
     int continuous_counter{ 1 }, MaxTemp{}, DiagonalCount{ 1 };
-    int OneBundleMax{};
     int SLBM{}, SLWM{};
-    int CurrentState[2]{ -1, -1 };  // 0 : BlackStone, 1 : WhiteStone
 
     for (DiagonalCount = 1; DiagonalCount < 38; ++DiagonalCount) {      //37개의 대각선을 구분지어서 하기 위함.
         SLBM = 0, SLWM = 0;
-        OneBundleMax = 0;
         if (DiagonalCount < 19) {                   //왼쪽 벽에서 시작하는 대각선
             int rightside = 1; SLBM = 0, SLWM = 0;
-            OneBundleMax = 0;
             for (int leftside = 19; leftside > 0; --leftside) {
                 if (map[leftside][rightside] == player[0]) {     //흑돌일때
                     continuous_counter = 1;
-
-                    CurrentState[0] = 0;
-                    bool meetblank{ false };
-                    if (0 != CurrentState[1]) OneBundleMax = 0;
-                    for (int k = 1; k < 5; k++) {
-                        if (leftside + k < 20 && rightside + k < 20) {
-                            if ((true == meetblank && map[leftside][rightside + k] == "+") || (map[leftside][rightside + k] == player[1])) break;
-                            if (map[leftside + k][rightside + k] == "+") meetblank = true;
-                            if (map[leftside + k][rightside + k] == player[0]) continuous_counter++;
-                        }
-                        else break;
-                    }
-                    SLBM = max(continuous_counter, SLBM);
-                    OneBundleMax = max(continuous_counter, OneBundleMax);
-
-                    for (int l = 0; l < continuous_counter; l++)
-                        LHDContinousBoard[leftside + l][rightside + l] = OneBundleMax;
-                    //
-                    /*
                     for (int k = 1; k < 5; k++) {
                         if (leftside + k < 20 && rightside + k < 20) {
                             if (map[leftside + k][rightside + k] == player[0])
@@ -685,7 +662,7 @@ int LHDiagonal_Checker()
                         }
                     }
                     SLBM = max(continuous_counter, SLBM);
-                    */
+
                     if (5 == continuous_counter) {
                         for (int k = 0; k < 5; ++k)
                             map[leftside + k][rightside + k] = MARKER;
@@ -694,32 +671,13 @@ int LHDiagonal_Checker()
                 }
                 else if (map[leftside][rightside] == player[1]) {     //백돌일때
                     continuous_counter = 1;
-
-                    CurrentState[0] = 1;
-                    bool meetblank{ false };
-                    if (1 != CurrentState[1]) OneBundleMax = 0;
-                    for (int k = 1; k < 5; k++) {
-                        if (leftside + k < 20 && rightside + k < 20) {
-                            if ((true == meetblank && map[leftside][rightside + k] == "+") || (map[leftside][rightside + k] == player[0])) break;
-                            if (map[leftside + k][rightside + k] == "+") meetblank = true;
-                            if (map[leftside + k][rightside + k] == player[1]) continuous_counter++;
-                        }
-                        else break;
-                    }
-                    SLWM = max(continuous_counter, SLWM);
-                    OneBundleMax = max(continuous_counter, OneBundleMax);
-
-                    for (int l = 0; l < continuous_counter; l++)
-                        LHDContinousBoard[leftside + l][rightside + l] = OneBundleMax;
-                    //
-                    /*
                     for (int k = 1; k < 5; k++) {
                         if (leftside + k < 20 && rightside + k < 20 && map[leftside + k][rightside + k] == player[1])
                             continuous_counter++;
                         else break;
                     }
                     SLWM = max(continuous_counter, SLWM);
-                    */
+
                     if (5 == continuous_counter) {
                         for (int k = 0; k < 5; ++k)
                             map[leftside + k][rightside + k] = MARKER;
@@ -794,7 +752,6 @@ int LHDiagonal_Checker()
                 }
             }
         }
-        CurrentState[1] = CurrentState[0];
         
         if (SLBM > SLWM) {
             LHDStoneSum[2][DiagonalCount] = SLBM;
